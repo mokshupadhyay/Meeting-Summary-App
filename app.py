@@ -15,13 +15,41 @@ SAMPLE = Path(__file__).parent / "samples" / "product_sync.txt"
 st.set_page_config(page_title="Meeting Summary", page_icon="📝", layout="wide")
 
 
+def saved_key() -> str:
+    """A key from GEMINI_API_KEY or .streamlit/secrets.toml, so it need not be pasted each time."""
+    if os.environ.get("GEMINI_API_KEY"):
+        return os.environ["GEMINI_API_KEY"]
+    try:
+        return st.secrets.get("GEMINI_API_KEY", "")
+    except Exception:  # no secrets file
+        return ""
+
+
+def call_gemini(fn, api_key: str, model: str, names: list[str]):
+    """Run fn(client, model), moving to the next newest model if this one is retired or overloaded."""
+    client = gemini_client(api_key)
+    errors: list[Exception] = []
+    for candidate in core.model_candidates(names, st.session_state.get("working_model") or model):
+        try:
+            result = fn(client, candidate)
+            st.session_state.working_model = candidate
+            return result, candidate
+        except Exception as e:
+            if not core.should_try_next_model(e):
+                raise
+            errors.append(e)
+    if any("UNAVAILABLE" in str(e) or "high demand" in str(e) for e in errors):
+        raise RuntimeError("Gemini is busy right now (every Flash model reported high demand). Try again in a minute.")
+    raise RuntimeError("None of the Gemini models this key can see are available.")
+
+
 @st.cache_resource(show_spinner=False)
 def whisper_model(size: str):
     return core.load_whisper(size)
 
 
 @st.cache_resource(show_spinner=False)
-def gemini_client(api_key: str):
+def gemini_client(api_key: str, timeout_s: int = 60):
     return core.make_client(api_key)
 
 
@@ -36,11 +64,12 @@ with st.sidebar:
     st.header("Settings")
     api_key = st.text_input(
         "Gemini API key",
-        value=os.environ.get("GEMINI_API_KEY", ""),
+        value=saved_key(),
         type="password",
-        help="Get one free at https://aistudio.google.com/apikey. You can also set GEMINI_API_KEY.",
+        help="Get one free at https://aistudio.google.com/apikey. You can also set GEMINI_API_KEY or put it in .streamlit/secrets.toml.",
     )
     model = None
+    names: list[str] = []
     if api_key:
         try:
             names = model_names(api_key)
@@ -134,7 +163,11 @@ with right:
         if "summary" not in st.session_state:
             with st.spinner(f"Summarising with {model}…"):
                 try:
-                    st.session_state.summary = core.summarize(gemini_client(api_key), model, transcript)
+                    st.session_state.summary, used = call_gemini(
+                        lambda c, m: core.summarize(c, m, transcript), api_key, model, names
+                    )
+                    if used != model:
+                        st.caption(f"{model} was unavailable, so {used} was used.")
                 except Exception as e:
                     st.error(f"Summary failed: {e}")
                     st.stop()
@@ -174,6 +207,7 @@ with right:
         if q:
             with st.spinner("Thinking…"):
                 try:
-                    st.write(core.ask(gemini_client(api_key), model, transcript, q))
+                    answer, _ = call_gemini(lambda c, m: core.ask(c, m, transcript, q), api_key, model, names)
+                    st.write(answer)
                 except Exception as e:
                     st.error(f"Could not answer: {e}")

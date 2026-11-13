@@ -24,11 +24,21 @@ def test_format_time_and_segments():
     assert core.segments_to_text(segs, timestamps=True).splitlines()[1] == "[1:05] Next item."
 
 
-def test_pick_model_prefers_known_flash_models():
-    assert core.pick_model(["gemini-2.5-pro", "gemini-2.5-flash"]) == "gemini-2.5-flash"
-    assert core.pick_model(["gemini-9-pro", "gemini-9-flash", "gemini-9-flash-image"]) == "gemini-9-flash"
+def test_pick_model_prefers_newest_plain_flash():
+    names = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.1-flash-lite", "gemini-3.8-flash",
+             "gemini-3.7-flash", "gemini-3.1-flash-image", "gemini-omni-flash-preview", "gemini-4-argon"]
+    assert core.pick_model(names) == "gemini-3.8-flash"
+    assert core.model_candidates(names)[:3] == ["gemini-3.8-flash", "gemini-3.7-flash", "gemini-2.5-flash"]
+    assert core.model_candidates(names, "gemini-2.5-pro")[:2] == ["gemini-2.5-pro", "gemini-3.8-flash"]
     assert core.pick_model(["gemini-9-pro"]) == "gemini-9-pro"
     assert core.pick_model([]) is None
+
+
+def test_moves_to_next_model_only_when_retired_or_overloaded():
+    assert core.should_try_next_model(Exception("404 NOT_FOUND. This model is no longer available"))
+    assert core.should_try_next_model(Exception("503 UNAVAILABLE. This model is currently experiencing high demand."))
+    assert not core.should_try_next_model(Exception("429 RESOURCE_EXHAUSTED"))
+    assert not core.should_try_next_model(Exception("400 API key not valid"))
 
 
 def test_available_models_filters_to_text_generation():

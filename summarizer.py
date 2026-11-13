@@ -11,16 +11,6 @@ from typing import Iterable, Optional
 
 from pydantic import BaseModel, Field
 
-# Models tried in order when the user has not picked one. The first one the key can use wins;
-# if none match, any available "flash" model is used.
-PREFERRED_MODELS = [
-    "gemini-3-flash",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash",
-]
-
-
 # ---------- Structured summary ----------
 
 
@@ -126,9 +116,17 @@ def segments_to_text(segments: Iterable[Segment], timestamps: bool = False) -> s
 
 
 def make_client(api_key: str):
+    """A Gemini client that fails fast (60 s, two attempts) so the app can move to another model."""
     from google import genai
+    from google.genai import types
 
-    return genai.Client(api_key=api_key)
+    return genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=60_000,
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=1.0, max_delay=4.0),
+        ),
+    )
 
 
 def available_models(client) -> list[str]:
@@ -142,14 +140,36 @@ def available_models(client) -> list[str]:
     return names
 
 
+_PLAIN_FLASH = re.compile(r"^gemini-(\d+(?:\.\d+)?)-flash$")
+
+
+def _flash_version(name: str) -> Optional[float]:
+    m = _PLAIN_FLASH.match(name)
+    return float(m.group(1)) if m else None
+
+
+def model_candidates(names: list[str], first: Optional[str] = None) -> list[str]:
+    """Models to try, best first: the chosen one, then plain Flash models newest first.
+
+    Google keeps listing older models it no longer serves to new keys, so the
+    caller walks this list and moves on when one is reported as retired.
+    """
+    flash = sorted((n for n in names if _flash_version(n) is not None), key=_flash_version, reverse=True)
+    out = ([first] if first else []) + [n for n in flash if n != first]
+    return out or names[:1]
+
+
 def pick_model(names: list[str]) -> Optional[str]:
-    for preferred in PREFERRED_MODELS:
-        if preferred in names:
-            return preferred
-    flash = sorted((n for n in names if "flash" in n and "image" not in n and "tts" not in n), reverse=True)
-    if flash:
-        return flash[0]
-    return names[0] if names else None
+    """The newest plain Flash model (no lite, image or preview variants), else the first listed."""
+    candidates = model_candidates(names)
+    return candidates[0] if candidates else None
+
+
+def should_try_next_model(err: Exception) -> bool:
+    """True when another model may work: this one is retired (404) or overloaded (503)."""
+    text = str(err)
+    signals = ("NOT_FOUND", "no longer available", "UNAVAILABLE", "high demand", "overloaded")
+    return any(s in text for s in signals) or any(f"{code} " in f"{text} " for code in ("404", "503"))
 
 
 def summarize(client, model: str, transcript: str) -> MeetingSummary:

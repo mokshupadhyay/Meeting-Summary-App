@@ -17,7 +17,8 @@ git clone https://github.com/mokshupadhyay/Meeting-Summary-App.git
 cd Meeting-Summary-App
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-export GEMINI_API_KEY=...   # optional; you can also paste it in the sidebar
+export GEMINI_API_KEY=...   # optional; or paste it in the sidebar, or save it once:
+# mkdir -p .streamlit && echo 'GEMINI_API_KEY = "..."' > .streamlit/secrets.toml   (gitignored)
 streamlit run app.py
 ```
 
