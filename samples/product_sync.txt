@@ -1,0 +1,19 @@
+Priya: Okay, let's start. Three things today: the checkout bug, the mobile release date, and hiring.
+Arjun: On checkout, the double-charge bug is fixed in staging. It only happened when the payment webhook arrived twice. We now ignore a webhook if we've already seen its event ID.
+Priya: Good. Can it go to production this week?
+Arjun: Yes, Thursday. I'll ship it Thursday morning and watch the error dashboard for the rest of the day.
+Neha: Support has 14 customers who were double-charged. Do we refund them all automatically?
+Priya: Yes, refund all 14 automatically. Neha, can you send them an apology email once the refunds go out?
+Neha: Sure, I'll do that by Friday.
+Priya: Next, the mobile release. We said 20 November. Are we still on track?
+Rahul: iOS is ready. Android is blocked on the new login screen; the biometric prompt crashes on some Samsung phones.
+Priya: How long to fix?
+Rahul: Probably two or three days, but I'm not sure until I reproduce it.
+Priya: Then let's move the release to 27 November and decide on Monday whether we need more time.
+Rahul: That works.
+Priya: Last thing, hiring. We still need a backend engineer.
+Arjun: I can run the technical interviews, but someone has to own the job post.
+Priya: I'll write the job post. We haven't agreed on whether the role is remote-only or hybrid. Let's take that to the leadership call.
+Neha: One more question. Are we keeping the old checkout page live for enterprise customers?
+Priya: Good question. I don't know yet. I'll check with sales.
+Priya: Okay, that's everything. Thanks all.

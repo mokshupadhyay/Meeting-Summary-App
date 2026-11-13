@@ -1,5 +1,5 @@
-streamlit
-google-generativeai
-openai-whisper
-torch
-numpy
+streamlit>=1.40
+google-genai>=1.0
+faster-whisper>=1.1
+av>=11,<16  # PyAV 16+ drops an option faster-whisper passes
+pydantic>=2.7

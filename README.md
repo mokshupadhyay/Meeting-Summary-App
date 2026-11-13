@@ -1,96 +1,46 @@
-# Meeting Summary App
+# Meeting Summary
 
-This is a **Streamlit-based application** that transcribes and summarizes meeting recordings using **Whisper** for speech-to-text and **Gemini AI** for text summarization.
+Upload a meeting recording or transcript and get a structured summary: the decisions, the action items (with owner and due date), the open questions and a one-paragraph TL;DR. Then ask follow-up questions about the meeting.
 
----
+- **Local transcription.** Audio is transcribed on your machine with [faster-whisper](https://github.com/SYSTRAN/faster-whisper), with timestamps and language detection. Recordings are never uploaded for transcription.
+- **Structured output.** Gemini returns JSON that matches a fixed schema (`MeetingSummary` in `summarizer.py`), so the summary always has the same sections and can be exported.
+- **Grounded.** The model is told to use only what is in the transcript and never invent owners, dates or decisions; anything unclear goes under open questions.
+- **Any input.** MP3, WAV, M4A, OGG, WEBM and MP4 recordings; TXT, VTT and SRT transcripts (subtitle timing is stripped); or pasted text.
+- **Export.** Download the transcript, and the summary as Markdown.
 
-## 🚀 Features
-- 🎧 **Transcribes audio recordings** (MP3, WAV, M4A) using Whisper.
-- 📝 **Summarizes meeting transcripts** using Google Gemini AI.
-- 🔑 **Supports API key input** for Gemini.
-- 🎯 **Simple UI** built with Streamlit.
+## Run it
 
----
+Needs Python 3.10+. ffmpeg is not required: PyAV bundles it.
 
-## 🛠️ Installation & Setup
-
-### **1️⃣ Clone the Repository**
 ```bash
 git clone https://github.com/mokshupadhyay/Meeting-Summary-App.git
 cd Meeting-Summary-App
-```
-
-### **2️⃣ Create & Activate Virtual Environment**
-#### **On macOS/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-#### **On Windows:**
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-### **3️⃣ Install Dependencies**
-```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+export GEMINI_API_KEY=...   # optional; you can also paste it in the sidebar
+streamlit run app.py
 ```
 
----
+Get a free Gemini API key at [Google AI Studio](https://aistudio.google.com/apikey). The app lists the models your key can use and picks a Flash model by default.
 
-## 🔑 API Key Setup
+The first transcription downloads the chosen Whisper model (`base` is about 140 MB). No audio handy? Use **Transcript file → Try the sample meeting**, or upload `harvard.wav`.
 
-1. Get your **Google Gemini API Key** from [Google AI Studio](https://ai.google.dev/).
-2. Enter the API key when prompted in the Streamlit app.
+## How it works
 
----
+| Step | Where |
+|---|---|
+| Transcribe audio to timestamped segments | `summarizer.transcribe` (faster-whisper, int8 on CPU) |
+| Clean transcripts (HTML, URLs, SRT/VTT timing) | `summarizer.clean_transcript` |
+| Summarise to a fixed JSON schema | `summarizer.summarize` (Gemini, `response_schema=MeetingSummary`) |
+| Answer questions from the transcript only | `summarizer.ask` |
+| Export to Markdown | `summarizer.to_markdown` |
+| UI | `app.py` (Streamlit) |
 
-## ▶️ Run the Application
+## Tests
 
 ```bash
-streamlit run meetsummary.py
+pip install -r requirements-dev.txt
+pytest
 ```
 
-- Open the **local URL** in your browser (e.g., `http://localhost:8501`).
-- Upload an **audio file** or **text transcript** to generate a summary.
-
----
-
-## ⚡ Example Usage
-1. **Upload an audio file** (`.mp3`, `.wav`, `.m4a`).
-2. **Wait for transcription** (Whisper will process the audio).
-3. **Gemini AI generates a summary** of the meeting.
-4. **View and copy** the summary for your records.
-
----
-
-## 🤖 Dependencies
-- **Python 3.8+**
-- **Streamlit**
-- **OpenAI Whisper**
-- **Google Gemini AI SDK**
-
----
-
-## 🛠️ Troubleshooting
-### **❌ Getting `Error: No available Gemini model found`?**
-- Check your API key at [Google AI Console](https://ai.google.dev/).
-- Ensure your API key is **entered correctly** in the Streamlit UI.
-
-### **❌ Can't install dependencies?**
-- Run:
-  ```bash
-  pip install --upgrade pip
-  pip install -r requirements.txt
-  ```
-
----
-
-## 📝 License
-This project is open-source and free to use. Contributions are welcome!
-
----
-
-### **👨‍💻 Created by Moksh Upadhyay**
-
+The tests run without network access or an API key; Gemini is replaced with a fake client.
